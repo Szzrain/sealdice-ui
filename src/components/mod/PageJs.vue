@@ -10,9 +10,16 @@
     </div>
   </el-affix>
   <el-affix :offset="70" v-if="jsConfigEdited">
-    <div class="tip-danger">
-      <el-text type="danger" size="large" tag="strong">配置内容已修改，不要忘记保存！</el-text>
+    <div v-if="jsConfigFormatErrKeys.length > 0">
+      <div class="tip-danger">
+        <el-text type="danger" size="large" tag="strong">配置内容已修改，但存在格式错误，无法保存！</el-text>
+      </div>
+    </div>
+    <div v-else> 
+      <div class="tip-danger">
+        <el-text type="danger" size="large" tag="strong">配置内容已修改，不要忘记保存！</el-text>
         <el-button class="button" type="primary" :icon="DocumentChecked" :disabled="!jsConfigEdited" @click="doJsConfigSave()">点我保存</el-button>
+      </div>
     </div>
   </el-affix>
   <el-row>
@@ -40,12 +47,16 @@
                 :before-upload="beforeUpload" :file-list="uploadFileList">
                 <el-button type="primary" :icon="Upload">上传插件</el-button>
               </el-upload>
-              <el-button type="info" :icon="Search" size="small" link tag="a" target="_blank"
+              <el-input v-model="jsFilter" :prefix-icon="Search" size="small" clearable/>
+              <el-button type="info" :icon="Link" size="small" link tag="a" target="_blank"
                 style="text-decoration: none;" href="https://github.com/sealdice/javascript">获取插件</el-button>
             </el-space>
           </header>
+          <aside v-if="jsFilterCount > 0" class="mb-4">
+            <el-text size="small" type="info">已过滤 {{ jsFilterCount }} 条</el-text>
+          </aside>
           <main class="js-list-main">
-            <foldable-card class="js-item" v-for="(i, index) of jsList" :key="index"
+            <foldable-card class="js-item" v-for="(i, index) of filteredJsList" :key="index"
                            :err-title="i.filename" :err-text="i.errText">
               <template #title>
                 <el-space class="js-item-header">
@@ -148,7 +159,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -172,7 +183,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -196,7 +207,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -220,7 +231,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -239,7 +250,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -280,7 +291,7 @@
                       <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
                         <el-tooltip content="移除 - 这个配置在新版的默认配置中不被使用，<br />但升级而来时仍可能被使用，请确认无用后删除" raw-content
                                     placement="bottom-end">
-                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key)">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, false)">
                             <delete-filled />
                           </el-icon>
                         </el-tooltip>
@@ -291,6 +302,57 @@
                         </el-select>
                       </div>
                     </el-form-item>
+                    <el-form-item v-if="(c as unknown as JsPluginConfigItem).type == 'task:cron'" style="width: 100%; margin-bottom: .5rem;">
+                      <el-form-item label="Cron 型定时任务:">{{(c as unknown as JsPluginConfigItem).key}}</el-form-item><br/>
+                      <div style="width: 100%"><el-text>{{ (c as unknown as JsPluginConfigItem).description }}</el-text></div>
+                      <div style="width: 100%; margin-bottom: .5rem;">
+                        <el-input type="textarea" v-model="(c as unknown as JsPluginConfigItem).value" @change="doTaskCronFormatCheck((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, (c as unknown as JsPluginConfigItem).value)"></el-input>
+                        <el-text type="danger" v-if="jsConfigFormatErrKeys.indexOf((config as unknown as JsPluginConfig)['pluginName'] + '/' +  (c as unknown as JsPluginConfigItem).key) !== -1">
+                          格式错误！
+                        </el-text>
+                      </div>
+                      <template v-if="(c as unknown as JsPluginConfigItem).value !== (c as unknown as JsPluginConfigItem).defaultValue">
+                        <el-tooltip content="重置为初始值" placement="bottom-end">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doResetJsConfig((config as unknown as JsPluginConfig)['pluginName'],(c as unknown as JsPluginConfigItem).key)">
+                            <brush-filled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                      <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
+                        <el-tooltip content="移除 - 这个定时任务在当前版本中不被使用，<br />但未来版本中仍可能被使用，请确认无用后删除" raw-content
+                                    placement="bottom-end">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, true)">
+                            <delete-filled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                    </el-form-item>
+                    <el-form-item v-if="(c as unknown as JsPluginConfigItem).type == 'task:daily'" style="width: 100%; margin-bottom: .5rem;">
+                      <el-form-item label="每日定时任务:">{{(c as unknown as JsPluginConfigItem).key}}</el-form-item><br/>
+                      <div style="width: 100%"><el-text>{{ (c as unknown as JsPluginConfigItem).description }}</el-text></div>
+                      <div style="width: 100%; margin-bottom: .5rem;">
+                        <el-input type="textarea" v-model="(c as unknown as JsPluginConfigItem).value" @change="doTaskDailyFormatCheck((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, (c as unknown as JsPluginConfigItem).value)"></el-input>
+                        <el-text type="danger" v-if="jsConfigFormatErrKeys.indexOf((config as unknown as JsPluginConfig)['pluginName'] + '/' + (c as unknown as JsPluginConfigItem).key) !== -1">
+                          格式错误！
+                        </el-text>
+                      </div>
+                      <template v-if="(c as unknown as JsPluginConfigItem).value !== (c as unknown as JsPluginConfigItem).defaultValue">
+                        <el-tooltip content="重置为初始值" placement="bottom-end">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doResetJsConfig((config as unknown as JsPluginConfig)['pluginName'],(c as unknown as JsPluginConfigItem).key)">
+                            <brush-filled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                      <template v-if="(c as unknown as JsPluginConfigItem).deprecated">
+                        <el-tooltip content="移除 - 这个定时任务在当前版本中不被使用，<br />但未来版本中仍可能被使用，请确认无用后删除" raw-content
+                                    placement="bottom-end">
+                          <el-icon style="float: right; margin-left: 1rem;" @click="doDeleteUnusedConfig((config as unknown as JsPluginConfig)['pluginName'], (c as unknown as JsPluginConfigItem).key, true)">
+                            <delete-filled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                    </el-form-item>
+
                   </el-form>
                 </el-card>
               </el-collapse-item>
@@ -304,9 +366,7 @@
 </template>
 
 <script lang="ts" setup>
-import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {useStore} from '~/store'
-import {ElMessage, ElMessageBox} from 'element-plus'
 import {
   BrushFilled,
   CaretRight,
@@ -316,6 +376,7 @@ import {
   DeleteFilled,
   DocumentChecked,
   Download,
+  Link,
   Refresh,
   Search,
   Upload
@@ -323,7 +384,6 @@ import {
 import * as dayjs from 'dayjs'
 import {basicSetup, EditorView} from "codemirror"
 import {javascript} from "@codemirror/lang-javascript"
-import DiffViewer from "~/components/tools/diff-viewer.vue";
 import {isEqual, size} from "lodash-es";
 import {JsPluginConfig, JsPluginConfigItem, JsScriptInfo} from "~/type";
 
@@ -387,9 +447,42 @@ const doJsConfigChanged = () => {
   jsConfigEdited.value = true
 }
 
-const doDeleteUnusedConfig = (pluginName: any, key: any) => {
+let jsConfigFormatErrKeys: Ref<string[]> = ref([]);
+const doTaskCronFormatCheck = async (pluginName: string, key: string, expr: string) => {
+  let index = jsConfigFormatErrKeys.value.indexOf(pluginName + '/' + key);
+  try{
+    await store.checkCronExpr(expr);
+    if (index !== -1) {
+      jsConfigFormatErrKeys.value.splice(index, 1);
+    }
+    jsConfigEdited.value = true;
+  } catch (_err) {
+    if (index === -1) {
+      jsConfigFormatErrKeys.value.push(pluginName + '/' + key);
+    }
+    jsConfigEdited.value = true;
+  }
+};
+
+const doTaskDailyFormatCheck = (pluginName: string, key: string, expr: string) => {
+  const pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+  let index = jsConfigFormatErrKeys.value.indexOf(pluginName + '/' + key);
+  if (pattern.test(expr)) {
+    if (index !== -1) {
+      jsConfigFormatErrKeys.value.splice(index, 1);
+    }
+    jsConfigEdited.value = true;
+  } else {
+    if (index === -1) {
+      jsConfigFormatErrKeys.value.push(pluginName + '/' + key);
+    }
+    jsConfigEdited.value = true;
+  } 
+};
+
+const doDeleteUnusedConfig = (pluginName: any, key: any, isTask: boolean) => {
   ElMessageBox.confirm(
-    `删除插件 ${pluginName} 的配置项 ${key} ，确定吗？`,
+    isTask ? `删除插件 ${pluginName} 的定时任务 ${key} ，确定吗？` : `删除插件 ${pluginName} 的配置项 ${key} ，确定吗？`,
     '删除',
     {
       confirmButtonText: '确定',
@@ -423,6 +516,8 @@ const doResetJsConfig = (plginName: string, key: string) => {
     })
     setTimeout(() => {
       refreshConfig()
+      jsConfigEdited.value = false
+      jsConfigFormatErrKeys.value = []
     }, 1000);
   })
 }
@@ -498,6 +593,17 @@ onBeforeUnmount(() => {
 
 
 const jsList = ref<JsScriptInfo[]>([]);
+const jsFilter = ref<string>('')
+const jsFilterCount = computed(() => jsList.value.length - filteredJsList.value.length)
+const filteredJsList = computed(() => jsList.value.filter((js) => {
+  if (jsFilter.value === '') {
+    return true
+  }
+  const val = jsFilter.value.toLowerCase();
+  return js.name?.toLowerCase()?.includes(val)
+      || js.desc?.toLowerCase()?.includes(val)
+      || js.author?.toLowerCase()?.includes(val)
+}))
 const jsConfig = ref<Map<string, JsPluginConfig>>(new Map<string, JsPluginConfig>());
 const uploadFileList = ref<any[]>([]);
 

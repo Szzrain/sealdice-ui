@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import {ArrowDown, ArrowRight, CircleClose} from "@element-plus/icons-vue";
-import {onMounted, ref} from "vue";
-import {ElCard} from "element-plus";
 
 const props = withDefaults(defineProps<{
   shadow?: 'always' | 'never' | 'hover'
-  type: 'card' | 'div' | string
+  type?: 'card' | 'div' | string
   errTitle?: string,
   errText?: string,
-  defaultFold: 'auto' | boolean
+  defaultFold?: 'auto' | boolean,
+  compact?: boolean
 }>(), {
   shadow: 'hover',
   type: 'card',
   defaultFold: 'auto',
+  compact: false
 });
 
 const getCardType = (t: string) => {
@@ -24,7 +24,7 @@ const getCardType = (t: string) => {
   }
 }
 
-const folded = ref<boolean>(true)
+const folded = ref<boolean | undefined>(undefined)
 
 const open = () => {
   folded.value = false
@@ -36,11 +36,9 @@ const close = () => {
 
 const updateFolded = () => {
   if (props.defaultFold === 'auto') {
-    folded.value = !window.matchMedia("(min-width: 768px)").matches;
-    console.log('auto fold')
+    folded.value = folded.value ?? !window.matchMedia("(min-width: 768px)").matches;
   } else {
-    folded.value = props.defaultFold
-    console.log('default fold:', props.defaultFold)
+    folded.value = folded.value ?? props.defaultFold
   }
 }
 window.addEventListener("resize", updateFolded);
@@ -54,7 +52,7 @@ defineExpose({open, close})
 <template>
   <component :is="getCardType(type)" :shadow="shadow">
     <main v-if="!errText" class="foldable-card">
-      <header class="header">
+      <header :class="props.compact ? 'header' : 'header mb-4'">
         <div class="title">
           <div class="title-warp">
             <slot name="title"/>
@@ -64,8 +62,8 @@ defineExpose({open, close})
             <div class="title-extra-warp">
               <slot name="title-extra"/>
             </div>
-            <div>
-              <el-button type="text" size="small" @click="folded = !folded">
+            <div class="mx-2">
+              <el-button link size="small" @click="folded = !folded">
                 <template #icon>
                   <el-icon color="var(--el-color-info)">
                     <component :is="folded ? ArrowRight : ArrowDown"/>
@@ -145,7 +143,6 @@ defineExpose({open, close})
 }
 
 .header {
-  margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;

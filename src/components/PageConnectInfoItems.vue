@@ -280,9 +280,9 @@
           </div>
         </template>
         <el-radio-group v-model="signConfigType" size="small" @change="signConfigTypeChange">
-          <el-radio-button label="none">不使用</el-radio-button>
-          <el-radio-button label="simple">简易配置</el-radio-button>
-          <el-radio-button label="advanced">高级配置</el-radio-button>
+          <el-radio-button value="none">不使用</el-radio-button>
+          <el-radio-button value="simple">简易配置</el-radio-button>
+          <el-radio-button value="advanced">高级配置</el-radio-button>
         </el-radio-group>
       </el-form-item>
       <el-form-item
@@ -356,9 +356,9 @@
           </div>
         </template>
         <el-radio-group v-model="form.signServerConfig.ruleChangeSignServer" size="small">
-          <el-radio-button :label="0">不设置</el-radio-button>
-          <el-radio-button :label="1">sign为空时切换</el-radio-button>
-          <el-radio-button :label="2">sign/token为空时切换</el-radio-button>
+          <el-radio-button :value="0">不设置</el-radio-button>
+          <el-radio-button :value="1">sign为空时切换</el-radio-button>
+          <el-radio-button :value="2">sign/token为空时切换</el-radio-button>
         </el-radio-group>
       </el-form-item>
       <el-form-item
@@ -598,9 +598,9 @@
             </div>
           </template>
           <el-radio-group v-model="signConfigType" size="small" @change="signConfigTypeChange">
-            <el-radio-button label="none">不使用</el-radio-button>
-            <el-radio-button label="simple">简易配置</el-radio-button>
-            <el-radio-button label="advanced">高级配置</el-radio-button>
+            <el-radio-button value="none">不使用</el-radio-button>
+            <el-radio-button value="simple">简易配置</el-radio-button>
+            <el-radio-button value="advanced">高级配置</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item
@@ -674,9 +674,9 @@
             </div>
           </template>
           <el-radio-group v-model="form.signServerConfig.ruleChangeSignServer" size="small">
-            <el-radio-button :label="0">不设置</el-radio-button>
-            <el-radio-button :label="1">sign为空时切换</el-radio-button>
-            <el-radio-button :label="2">sign/token为空时切换</el-radio-button>
+            <el-radio-button :value="0">不设置</el-radio-button>
+            <el-radio-button :value="1">sign为空时切换</el-radio-button>
+            <el-radio-button :value="2">sign/token为空时切换</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item
@@ -811,7 +811,7 @@
 
         <el-form-item v-if="form.accountType === 14" label="平台" :label-width="formLabelWidth" required>
           <el-radio-group v-model="form.platform">
-            <el-radio-button label="QQ"/>
+            <el-radio-button value="QQ"/>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="form.accountType === 14" label="主机" :label-width="formLabelWidth" required>
@@ -1117,10 +1117,9 @@
 </template>
 
 <script lang="ts" setup>
-import { h, reactive, onBeforeMount, onBeforeUnmount, onMounted, ref, nextTick, Ref, computed } from 'vue';
+import { reactive } from 'vue'
 import { useStore, goCqHttpStateCode } from '~/store';
 import type { DiceConnection } from '~/store';
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, QuestionFilled, Delete } from '@element-plus/icons-vue'
 import { sleep } from '~/utils'
 import * as dayjs from 'dayjs'

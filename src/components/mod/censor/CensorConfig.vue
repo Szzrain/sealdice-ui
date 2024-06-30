@@ -23,9 +23,9 @@
         </el-tooltip>
       </template>
       <el-radio-group v-model="config.mode" size="small">
-        <el-radio-button :label="Mode.ReplyOutput">{{ "发出的消息" }}</el-radio-button>
-        <el-radio-button :label="Mode.CommandInput">{{ "收到的指令" }}</el-radio-button>
-        <el-radio-button :label="Mode.AllInput">{{ "收到的所有消息(慎用)" }}</el-radio-button>
+        <el-radio-button :value="Mode.ReplyOutput">{{ "发出的消息" }}</el-radio-button>
+        <el-radio-button :value="Mode.CommandInput">{{ "收到的指令" }}</el-radio-button>
+        <el-radio-button :value="Mode.AllInput">{{ "收到的所有消息(慎用)" }}</el-radio-button>
       </el-radio-group>
     </el-form-item>
     <el-form-item label="大小写敏感">
@@ -166,10 +166,8 @@
 
 <script lang="ts" setup>
 
-import {nextTick, onBeforeMount, onBeforeUnmount, ref, watch} from "vue";
 import {DocumentChecked, QuestionFilled} from "@element-plus/icons-vue";
 import {isArray, isEqual, isObject, transform} from "lodash-es";
-import {ElMessage} from "element-plus";
 import {useCensorStore} from "~/components/mod/censor/censor";
 
 onBeforeMount(async () => {

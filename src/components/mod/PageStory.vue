@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import { Back, Delete, Select, Upload } from '@element-plus/icons-vue'
-import { Ref, ref, onBeforeMount, computed } from 'vue'
 import { useStore, urlPrefix } from '~/store'
-import { apiFetch, backend } from '~/backend'
+import { backend } from '~/backend'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import StoryBackup from "~/components/mod/story/StoryBackup.vue";
+import randomColor from "randomcolor";
+import resolveConfig from 'tailwindcss/resolveConfig'
+import tailwindConfig from '../../../tailwind.config'
+
+const twColors = resolveConfig(tailwindConfig).theme.colors
 
 interface Log {
     id: number
@@ -35,9 +37,7 @@ const token = store.token
 const url = (p: string) => urlPrefix + "/story/" + p;
 
 async function getInfo() {
-    return apiFetch(url("info"), {
-        method: "get"
-    })
+  return backend.get(url("info")) as any
 }
 
 // async function getLogs() {
@@ -95,9 +95,7 @@ async function uploadLog(v: Log) {
             type: 'warning',
         }
     );
-    return apiFetch(url("uploadLog"), {
-        method: "post", body: v, headers: { token: token }
-    })
+    return backend.post(url("uploadLog"), v,{ headers: { token }}) as any
 }
 
 //
@@ -126,17 +124,13 @@ async function searchLogs() {
         logs.value = result.data
         queryLogPage.value.total = result.total
     } else {
-        ElMessage.error("无法获取跑团日志" + result.err ?? "")
+        ElMessage.error("无法获取跑团日志" + result.err)
     }
 }
 
 const refreshLogs = async () => {
     [sum_log.value, sum_item.value, cur_log.value, cur_item.value] = await getInfo()
     await searchLogs()
-    ElMessage({
-        message: '刷新日志列表完成',
-        type: 'success',
-    })
 }
 
 const handleLogPageChange = async (val: number) => {
@@ -251,12 +245,41 @@ function closeItem() {
     users.value = {}
 }
 
+const randomColorWithIndex = (i: number): string => {
+    const presets = [
+        twColors.red[600],
+        twColors.orange[600],
+        twColors.yellow[600],
+        twColors.green[600],
+        twColors.cyan[600],
+        twColors.blue[600],
+        twColors.purple[600],
+        twColors.pink[600],
+        twColors.slate[600],
+    ]
+    const randomColorSystems = [
+        'red',
+        'orange',
+        'yellow',
+        'green',
+        'blue',
+        'purple',
+        'pink',
+        'monochrome',
+    ]
+    if (i < presets.length) {
+        return presets[i]
+    } else {
+        return randomColor({ hue: randomColorSystems[i % randomColorSystems.length], luminosity: 'dark' })
+    }
+}
+
 const items = computed(() => {
     let items: Item[] = []
-    item_data.value.forEach(v => {
+    item_data.value.forEach((v, i) => {
         if (!users.value[v.IMUserId]) {
             users.value[v.IMUserId] = [
-                '#' + (Math.random() + 0.01).toString(16).substring(2, 8).toUpperCase(),
+                randomColorWithIndex(i),
                 v.nickname
             ]
         }
@@ -369,21 +392,23 @@ onBeforeMount(async () => {
                     <ElCollapseItem title="颜色设置">
                         <template v-for="(_, id) in users" :key="id">
                             <div style="padding: 0.5rem;">
-                                <input type="color" v-model="users[id][0]" />
+                                <el-color-picker v-model="users[id][0]" color-format="hex" :predefine="randomColor({count: 10})"/>
                                 <span style="padding-left: 1rem;">{{ users[id][1] }}</span>
                             </div>
                         </template>
                     </ElCollapseItem>
                 </ElCollapse>
             </ElCard>
-            <template v-for="v, i1 in items" :key="i1">
-                <p :style="{ color: users[v.IMUserId][0] }">
-                    <span>{{ v.nickname }}：</span>
-                    <template v-for="p1, i2 in v.message.split('\n')" :key="i2">
-                        <span>{{ p1 }}</span><br>
-                    </template>
-                </p>
-            </template>
+            <div class="my-4 px-4">
+                <template v-for="(v, i1) in items" :key="i1">
+                    <p :style="{ color: users[v.IMUserId][0] }">
+                        <span>{{ v.nickname }}：</span>
+                        <template v-for="(p1, i2) in v.message.split('\n')" :key="i2">
+                          <span>{{ p1 }}</span><br>
+                        </template>
+                    </p>
+                </template>
+            </div>
             <div style="display: flex; justify-content: center;">
                 <el-pagination class="pagination" :page-size="logItemPage.pageSize" :current-page="logItemPage.pageNum"
                     :pager-count=5 :total="logItemPage.size" @current-change="handleItemPageChange" layout="prev, pager, next"

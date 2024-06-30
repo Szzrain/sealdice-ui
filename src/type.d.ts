@@ -29,7 +29,7 @@ export interface JsPluginConfigItem {
 
 export interface JsPluginConfig {
   pluginName: string;
-  configs: Map<string, JsPluginConfigItem>;
+  configs: JsPluginConfigItem[];
 }
 
 export interface HelpDocData {
@@ -74,6 +74,7 @@ export interface HelpTextItem {
 }
 
 export interface AdvancedConfig {
+  show: boolean,
   enable: boolean,
   storyLogBackendUrl: string,
   storyLogApiVersion: string,

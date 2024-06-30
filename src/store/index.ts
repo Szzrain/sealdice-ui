@@ -1,7 +1,6 @@
-import { apiFetch, backend } from './backend'
+import { backend } from '~/backend'
 
 import { addImConnectionForm } from '~/components/PageConnectInfoItems.vue'
-import { defineStore } from 'pinia'
 import type {
   AdvancedConfig,
   HelpDoc,
@@ -52,6 +51,7 @@ interface TalkLogItem {
   name?: string
   content: string
   isSeal?: boolean
+  mode: 'private' | 'group'
 }
 
 export interface DiceConnection {
@@ -109,9 +109,19 @@ interface DiceBaseInfo {
   uptime: number
   OS: string
   arch: string
+  justForTest: boolean
   containerMode: boolean
 }
 
+export type ResourceType = 'image' | 'audio' | 'video'
+
+export interface Resource {
+  type: ResourceType | 'unknown',
+  name: string
+  ext: string,
+  path: string,
+  size: number,
+}
 
 
 export const useStore = defineStore('main', {
@@ -125,12 +135,24 @@ export const useStore = defineStore('main', {
 
       talkLogs: [
         {
-          content: '海豹已就绪。此界面可视为私聊窗口。\n设置中添加Master名为UI:1001\n即可在此界面使用master命令!',
-          isSeal: true
+          content: '海豹已就绪。此界面可视为私聊窗口。\n设置中添加 Master 名为 UI:1001\n即可在此界面使用 master 命令!',
+          isSeal: true,
+          mode: 'private',
+        },
+        {
+          content: '海豹已就绪。此界面可视为群聊窗口。\n设置中添加 Master 名为 UI:1002\n即可在此界面使用 master 命令!',
+          isSeal: true,
+          mode: 'group',
         },
         {
           content: '（请注意，当前会话记录在刷新页面后会消失）',
-          isSeal: true
+          isSeal: true,
+          mode: 'private',
+        },
+        {
+          content: '（请注意，当前会话记录在刷新页面后会消失）',
+          isSeal: true,
+          mode: 'group',
         },
       ] as TalkLogItem[]
     }
@@ -152,6 +174,7 @@ export const useStore = defineStore('main', {
             versionNewCode: 0,
             OS: '',
             arch: '',
+            justForTest: false,
             containerMode: false,
           },
           customTexts: {},
@@ -170,6 +193,13 @@ export const useStore = defineStore('main', {
   actions: {
     async customTextSave(category: string) {
       await backend.post(urlPrefix + '/configs/customText/save', { data: this.curDice.customTexts[category], category })
+    },
+
+    async getPreInfo() {
+      const info: {
+        testMode: boolean
+      } = await backend.get(urlPrefix + '/preInfo', {timeout: 5000})
+      return info
     },
 
     async getBaseInfo() {
@@ -217,6 +247,10 @@ export const useStore = defineStore('main', {
       return info as any
     },
 
+    async checkCronExpr(expr: string) {
+      return await backend.post(urlPrefix + '/utils/check_cron_expr', {expr: expr}) as any
+    },
+
     async addImConnection(form: addImConnectionForm ) {
       const {
         accountType,
@@ -247,7 +281,7 @@ export const useStore = defineStore('main', {
         reverseAddr,
         onlyQQGuild,
         platform } = form
-        
+
       let info = null
       switch (accountType) {
         //QQ
@@ -374,8 +408,8 @@ export const useStore = defineStore('main', {
       return res
     },
 
-    async diceExec(text: string) {
-      const info = await backend.post(urlPrefix + '/dice/exec', { message: text })
+    async diceExec(text: string, messageType: 'private' | 'group') {
+      const info = await backend.post(urlPrefix + '/dice/exec', { message: text, messageType })
       return info as any
     },
 
@@ -449,8 +483,8 @@ export const useStore = defineStore('main', {
       return info as any
     },
 
-    async backupDoSimple() {
-      const info = await backend.post(urlPrefix + '/backup/do_backup')
+    async backupDoSimple(params: { selection: number }) {
+      const info = await backend.post(urlPrefix + '/backup/do_backup', params)
       return info as any
     },
 
@@ -566,38 +600,33 @@ export const useStore = defineStore('main', {
     },
 
     async jsStatus(): Promise<boolean> {
-      const resp = await apiFetch(urlPrefix + '/js/status', { method: 'GET' })
-      return resp.status
+      const resp: { result: true, status: boolean } | {
+        result: false, err: string
+      } = await backend.get(urlPrefix + '/js/status' )
+      if (resp.result) {
+        return resp.status
+      }
+      return false
     },
     async jsList(): Promise<JsScriptInfo[]> {
-      return await apiFetch(urlPrefix + '/js/list', {
-        method: 'GET', headers: {
-          token: this.token
-        }
-      })
+      return await backend.get(urlPrefix + '/js/list', { headers: { token: this.token } }) as any
     },
     async jsGetConfig() {
-      return await apiFetch(urlPrefix + '/js/get_configs', {
-        method: 'GET', headers: {
-          token: this.token
-        }
-      })
+      return await backend.get(urlPrefix + '/js/get_configs', { headers: { token: this.token } }) as any
     },
     async jsSetConfig(configs: any) {
-      return await backend.post(urlPrefix + '/js/set_configs', configs)
+      return await backend.post(urlPrefix + '/js/set_configs', configs) as any
     },
     async jsResetConfig(pluginName: any, key: any) {
-      return await backend.post(urlPrefix + '/js/reset_config', { pluginName, key })
+      return await backend.post(urlPrefix + '/js/reset_config', { pluginName, key }) as any
     },
     async jsDeleteUnusedConfig(pluginName: any, key: any) {
-      return await backend.post(urlPrefix + '/js/delete_unused_config', { pluginName, key })
+      return await backend.post(urlPrefix + '/js/delete_unused_config', { pluginName, key }) as any
     },
     async jsGetRecord() {
-      return await apiFetch(urlPrefix + '/js/get_record', {
-        method: 'GET', headers: {
-          token: this.token
-        }
-      }) as {
+      return await backend.get(urlPrefix + '/js/get_record',
+        { headers: { token: this.token } }
+      ) as {
         outputs: string[]
       }
     },
@@ -610,41 +639,42 @@ export const useStore = defineStore('main', {
       return info as any
     },
     async jsReload() {
-      return await apiFetch(urlPrefix + '/js/reload', {
-        headers: {
-          token: this.token
-        }
-      })
+      return await backend.post(
+        urlPrefix + '/js/reload',
+        undefined,
+        { headers: { token: this.token } }
+      ) as any
     },
     async jsShutdown() {
-      return await apiFetch(urlPrefix + '/js/shutdown', {
-        headers: {
-          token: this.token
-        }
-      })
+      return await backend.post(
+        urlPrefix + '/js/shutdown',
+        undefined,
+        { headers: { token: this.token } }
+      ) as any
     },
     async jsExec(code: string) {
-      return await apiFetch(urlPrefix + '/js/execute', { body: { value: code } }) as {
+      return await backend.post(
+        urlPrefix + '/js/execute',
+        { value: code } ,
+      ) as {
         ret: any,
         outputs: string[],
         err: string,
       }
     },
     async jsEnable(body: any) {
-      return await apiFetch(urlPrefix + '/js/enable', {
-        headers: {
-          token: this.token
-        },
-        body
-      })
+      return await backend.post(
+        urlPrefix + '/js/enable',
+        body,
+        { headers: { token: this.token } }
+      ) as any
     },
     async jsDisable(body: any) {
-      return await apiFetch(urlPrefix + '/js/disable', {
-        headers: {
-          token: this.token
-        },
-        body
-      })
+      return await backend.post(
+        urlPrefix + '/js/disable',
+        body,
+        { headers: { token: this.token } }
+      ) as any
     },
 
     async jsCheckUpdate({ index }: any) {
@@ -665,11 +695,11 @@ export const useStore = defineStore('main', {
     },
 
     async toolOnebot() {
-      return await apiFetch(urlPrefix + '/tool/onebot', {
-        headers: {
-          token: this.token
-        }
-      }) as {
+      return await backend.post(
+        urlPrefix + '/tool/onebot',
+        undefined,
+        { headers: { token: this.token } }
+      ) as {
         ok: boolean,
         ip: string,
         errText: string
@@ -717,62 +747,80 @@ export const useStore = defineStore('main', {
     },
 
     async helpDocTree(): Promise<{ result: true, data: HelpDoc[] } | { result: false, err?: string }> {
-      return await apiFetch(urlPrefix + '/helpdoc/tree', {
-        method: 'GET', headers: {
-          token: this.token
-        }
-      })
+      return await backend.get(urlPrefix + '/helpdoc/tree', { headers: { token: this.token } })
     },
 
     async helpDocReload(): Promise<{ result: true } | { result: false, err?: string }> {
-      return await apiFetch(urlPrefix + '/helpdoc/reload', {
-        method: 'POST', headers: {
-          token: this.token
-        }
-      })
+      return await backend.post(urlPrefix + '/helpdoc/reload', undefined,{ headers: { token: this.token } })
     },
 
     async helpDocUpload(form: any): Promise<{ result: true } | { result: false, err?: string }> {
-      return await apiFetch(urlPrefix + '/helpdoc/upload', {
-        method: 'POST', headers: {
-          token: this.token,
-        }, body: form
-      })
+      return await backend.post(urlPrefix + '/helpdoc/upload', form, { headers: { token: this.token } })
     },
 
     async helpDocDelete(keys: string[]): Promise<{ result: true } | { result: false, err?: string }> {
-      return await apiFetch(urlPrefix + '/helpdoc/delete', {
-        method: 'POST',
-        headers: { token: this.token },
-        body: { keys: keys }
-      })
+      return await backend.post(urlPrefix + '/helpdoc/delete', { keys: keys }, { headers: { token: this.token } })
     },
 
     async helpGetTextItemPage(param: HelpTextItemQuery): Promise<{ result: true; total: number; data: HelpTextItem[] } | { result: false; err?: string }> {
-      return await apiFetch(urlPrefix + "/helpdoc/textitem/get_page", {
-        method: "POST",
-        body: param,
-      });
+      return await backend.post(urlPrefix + "/helpdoc/textitem/get_page", param)
     },
 
     async helpGetConfig(): Promise<{ aliases: { [key: string]: string[] } }> {
-      return await apiFetch(urlPrefix + "/helpdoc/config", {
-        method: "GET",
-        headers: {
-          token: this.token
-        }
-      })
+      return await backend.get(urlPrefix + "/helpdoc/config", { headers: { token: this.token } })
     },
 
     async helpSetConfig(param: { aliases: { [key: string]: string[] } }): Promise<{ result: true } | { result: false, err?: string }> {
-      console.log("param=", param)
-      return await apiFetch(urlPrefix + "/helpdoc/config", {
-        method: "POST",
+      return await backend.post(urlPrefix + "/helpdoc/config", param, { headers: { token: this.token } })
+    },
+
+
+    async resourceList(type: ResourceType) {
+      const info: { result: false, err: string } | {
+        result: true,
+        total?: number,
+        data: Resource[]
+      } = await backend.get(urlPrefix + '/resource/page', {
         headers: {
           token: this.token
         },
-        body: param
+        params: {
+          type
+        }
       })
+      return info
     },
+
+    async resourceUpload({ form }: any) {
+      const info: { result: false, err: string } | { result: true }
+          = await backend.post(urlPrefix + '/resource', form, {
+        headers: {
+          token: this.token,
+          "Content-Type": "multipart/form-data"
+        },
+      })
+      return info
+    },
+
+    async resourceDelete(path: string) {
+      const info: { result: false, err: string } | { result: true }
+          = await backend.delete(urlPrefix + '/resource', {
+        headers: {
+          token: this.token
+        },
+        params: {
+          path
+        }
+      })
+      return info
+    },
+
+    async resourceData(path: string, thumbnail: boolean = false)  {
+      const response = await backend.get(urlPrefix + '/resource/data', {
+        params: { path, thumbnail },
+        responseType: "blob",
+      })
+      return response as unknown as Blob;
+    }
   }
 })

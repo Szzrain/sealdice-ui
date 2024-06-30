@@ -169,11 +169,9 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeMount, onBeforeUnmount, ref, watch, nextTick, computed } from 'vue';
 import { urlBase } from "~/backend";
 import { useStore } from '~/store';
-import nestedDraggable from "../tools/nested.vue";
-import { ElMessage, ElMessageBox } from 'element-plus'
+import nestedDraggable from "../utils/nested.vue";
 import {
   DocumentChecked,
   Delete,
@@ -183,7 +181,6 @@ import {
   Upload,
   Plus
 } from '@element-plus/icons-vue'
-import CustomReplyCondition from "~/components/tools/custom-reply-condition.vue";
 
 const store = useStore()
 const dialogFormVisible = ref(false)
@@ -333,7 +330,7 @@ const addOneCondition = (lst: any) => {
 }
 
 const addOne = (lst: any) => {
-  lst.push({ "enable": true, "notCollapse": true, "conditions": [{ "condType": "textMatch", "matchType": "matchExact", "value": "要匹配的文本" }], "results": [{ "resultType": "replyToSender", "delay": 0, "message": [["说点什么", 1]] }] },)
+  lst.push({ "enable": true, "conditions": [{ "condType": "textMatch", "matchType": "matchExact", "value": "要匹配的文本" }], "results": [{ "resultType": "replyToSender", "delay": 0, "message": [["说点什么", 1]] }] },)
 }
 
 const deleteAnyItem = (lst: any[], index: number) => {

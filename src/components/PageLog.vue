@@ -13,11 +13,18 @@
     </span>
 
     <span style="display: flex; align-self: flex-end; flex-direction: column;">
-      <el-button v-if="store.curDice.baseInfo.versionCode < store.curDice.baseInfo.versionNewCode" type="primary" @click="upgradeDialogVisible = true">升级新版</el-button>
+      <el-tooltip v-if="store.curDice.baseInfo.versionCode < store.curDice.baseInfo.versionNewCode && store.curDice.baseInfo.containerMode"
+                  content="容器模式下禁止直接更新，请手动拉取最新镜像">
+        <el-button type="primary" disabled>升级新版</el-button>
+      </el-tooltip>
+      <el-button v-else-if="store.curDice.baseInfo.versionCode < store.curDice.baseInfo.versionNewCode"
+                 type="primary" @click="upgradeDialogVisible = true">
+        升级新版
+      </el-button>
       <el-checkbox v-model="autoRefresh">保持刷新</el-checkbox>
     </span>
   </p>
-  <div style="padding: 0;" class="hidden-xs-only">
+  <div style="padding: 0;" class="hidden-xs-only logs">
     <el-table :data="store.curDice.logs"
               :row-class-name="getLogRowClassName" :header-cell-style="{backgroundColor: '#f3f5f7'}">
       <el-table-column label="时间" width="90" >
@@ -119,7 +126,6 @@
 
 <script lang="ts" setup>
 import { Timer, CaretBottom } from '@element-plus/icons-vue'
-import { computed, onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useStore } from '~/store';
 import * as dayjs from 'dayjs'
 import {filesize} from 'filesize'
@@ -133,7 +139,6 @@ import {
   QuestionFilled,
   BrushFilled
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 
 const store = useStore()
 
@@ -154,7 +159,7 @@ const doUpgrade = async () => {
 }
 
 const scrollDown = () => {
-  const panel = document.querySelector<HTMLElement>('.main-container')?.parentElement;
+  const panel = document.querySelector<HTMLElement>('.logs')?.parentElement;
   if (panel) {
     panel.scrollTop = panel.scrollHeight;
   }
