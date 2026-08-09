@@ -67,6 +67,12 @@ export interface StorePageQuery {
   pageSize?: number;
 }
 
+export interface StorePageResponse extends ApiResponse<StorePackage[]> {
+  pageNum?: number;
+  pageSize?: number;
+  next?: boolean;
+}
+
 export interface StoreRecommendQuery {
   backend?: string;
 }
@@ -212,7 +218,7 @@ export function getStoreRecommend(params?: StoreRecommendQuery) {
 }
 
 export function getStorePage(params: StorePageQuery) {
-  return request<ApiResponse<StorePackage[]>>('get', 'page', params);
+  return request<StorePageResponse>('get', 'page', params);
 }
 
 export function getStorePackageFiles(pkg: StorePackage) {

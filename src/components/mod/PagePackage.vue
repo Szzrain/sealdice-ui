@@ -252,7 +252,14 @@
               </div>
             </template>
 
-            <div class="store-search-bar">
+            <div class="store-view-tabs">
+              <el-radio-group v-model="storeView" @change="handleStoreViewChange">
+                <el-radio-button value="all">全部</el-radio-button>
+                <el-radio-button value="recommend">推荐</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div v-if="storeView === 'all'" class="store-search-bar">
               <el-input
                 v-model="storeQuery.name"
                 class="store-search-input"
@@ -288,7 +295,17 @@
                         }}</span>
                       </span>
                       <span class="store-package-name-main">
-                        <span class="store-package-name-title">{{ scope.row.name }}</span>
+                        <el-link
+                          v-if="getStorePackageDetailHref(scope.row)"
+                          class="store-package-name-link"
+                          type="primary"
+                          :underline="false"
+                          :href="getStorePackageDetailHref(scope.row)"
+                          target="_blank"
+                          rel="noopener noreferrer">
+                          {{ scope.row.name }}
+                        </el-link>
+                        <span v-else class="store-package-name-title">{{ scope.row.name }}</span>
                         <span class="store-package-name-version">{{ scope.row.version }}</span>
                       </span>
                     </div>
@@ -336,18 +353,19 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" fixed="right" width="220">
+                <el-table-column label="操作" fixed="right" header-align="center" min-width="125">
                   <template #default="scope">
                     <div class="store-package-actions">
                       <el-link
+                        v-if="getStorePackageDetailHref(scope.row)"
                         class="store-detail-link"
                         type="primary"
                         :underline="false"
                         :href="getStorePackageDetailHref(scope.row)"
                         target="_blank"
-                        rel="noopener noreferrer">
-                        <el-icon class="store-detail-link-icon"><TopRight /></el-icon>
-                        <span>查看详情</span>
+                        rel="noopener noreferrer"
+                        title="详情">
+                        详情
                       </el-link>
                       <el-button
                         v-if="findInstalledPackageByStore(scope.row)"
@@ -371,14 +389,15 @@
               </el-table>
             </div>
 
-            <div v-if="storeViewMode === 'search'" class="pagination-row">
+            <div
+              v-if="storeView === 'all' && storePackages.length > 0 && storeMaxPageCount > 1"
+              class="pagination-row">
               <el-config-provider :locale="zhCn">
                 <el-pagination
                   background
-                  layout="total, prev, pager, next"
+                  layout="prev, pager, next"
+                  :page-count="storeMaxPageCount"
                   :current-page="storeQuery.pageNum"
-                  :page-size="storeQuery.pageSize"
-                  :total="storeTotal"
                   @current-change="handleStorePageChange" />
               </el-config-provider>
             </div>
@@ -933,7 +952,6 @@ const activeTab = computed<PackageTab>({
 });
 
 type ContentFilter = 'all' | ContentKind;
-type StoreViewMode = 'recommend' | 'search';
 type ManifestInstallResultStatus = StoreInstallListItemStatus | 'enabled' | 'enable_failed';
 type ManifestInstallResult = Omit<StoreInstallListItemResult, 'status'> & {
   status: ManifestInstallResultStatus;
@@ -998,8 +1016,12 @@ const storeLoadStarted = ref(false);
 const storeLoading = ref(false);
 const storeDownloadLoading = ref<Record<string, boolean>>({});
 const storePackages = ref<StorePackage[]>([]);
-const storeTotal = ref(0);
-const storeViewMode = ref<StoreViewMode>('recommend');
+/** 后端只返回“是否有下一页”，分页仅暴露当前已确认可达的页码 */
+const storeMaxPageCount = ref(1);
+type StoreView = 'all' | 'recommend';
+const storeView = ref<StoreView>('all');
+let storeListRequestId = 0;
+let storeListRequestView: StoreView = 'all';
 const storeInstallPreviewVisible = ref(false);
 const storeInstallPreviewLoading = ref(false);
 const storeInstallPreviewTarget = ref<StorePackage | null>(null);
@@ -1428,24 +1450,33 @@ const setLoadingFlag = (
   target.value[key] = value;
 };
 
-const unwrapStoreList = (response: any): { list: StorePackage[]; total: number } => {
-  const payload = response?.data;
+type StoreListPayload =
+  | StorePackage[]
+  | {
+      list?: StorePackage[];
+      items?: StorePackage[];
+      next?: unknown;
+    };
+
+type StoreListResponse = {
+  data?: StoreListPayload;
+  next?: unknown;
+};
+
+const unwrapStoreList = (response: StoreListResponse): { list: StorePackage[]; next: boolean } => {
+  const readNext = (source?: { next?: unknown }) =>
+    typeof source?.next === 'boolean' ? source.next : Boolean(source?.next);
+  const payload = response.data;
   if (Array.isArray(payload)) {
-    return { list: payload, total: Number(response?.total ?? payload.length) };
+    return { list: payload, next: readNext(response) };
   }
   if (payload && Array.isArray(payload.list)) {
-    return {
-      list: payload.list,
-      total: Number(payload.total ?? response?.total ?? payload.list.length),
-    };
+    return { list: payload.list, next: readNext(payload) || readNext(response) };
   }
   if (payload && Array.isArray(payload.items)) {
-    return {
-      list: payload.items,
-      total: Number(payload.total ?? response?.total ?? payload.items.length),
-    };
+    return { list: payload.items, next: readNext(payload) || readNext(response) };
   }
-  return { list: [], total: Number(response?.total ?? 0) };
+  return { list: [], next: readNext(response) };
 };
 
 const refreshInstalledPackages = async () => {
@@ -1961,67 +1992,105 @@ const buildStoreQuery = () => {
   return query;
 };
 
-const loadStoreRecommend = async () => {
-  storeViewMode.value = 'recommend';
+const resetStorePagination = () => {
+  storeQuery.pageNum = 1;
+  storeMaxPageCount.value = 1;
+};
+
+const beginStoreListRequest = () => {
+  const requestId = ++storeListRequestId;
+  storeListRequestView = storeView.value;
   storeLoading.value = true;
-  try {
-    const response = await getStoreRecommend();
-    if (!response.result) {
-      storePackages.value = [];
-      storeTotal.value = 0;
-      ElMessage.error(getResponseError(response, '获取商店推荐失败'));
-      return;
-    }
-    const { list, total } = unwrapStoreList(response);
-    storePackages.value = list;
-    storeTotal.value = total || list.length;
-  } finally {
+  return requestId;
+};
+
+const isCurrentStoreListRequest = (requestId: number) =>
+  requestId === storeListRequestId && storeView.value === storeListRequestView;
+
+const finishStoreListRequest = (requestId: number) => {
+  if (requestId === storeListRequestId) {
     storeLoading.value = false;
   }
 };
 
-const searchStorePackages = async () => {
-  storeViewMode.value = 'search';
-  storeLoading.value = true;
+const loadStorePage = async (resetKnownPages = false): Promise<void> => {
+  const query = buildStoreQuery();
+  const requestedPage = query.pageNum && query.pageNum > 0 ? query.pageNum : 1;
+  const requestId = beginStoreListRequest();
   try {
-    const response = await getStorePage(buildStoreQuery());
-    if (!response.result) {
-      storePackages.value = [];
-      storeTotal.value = 0;
-      ElMessage.error(getResponseError(response, '搜索商店扩展包失败'));
+    const response = await getStorePage(query);
+    if (!isCurrentStoreListRequest(requestId)) {
       return;
     }
-    const { list, total } = unwrapStoreList(response);
+    if (!response.result) {
+      storePackages.value = [];
+      ElMessage.error(getResponseError(response, '获取商店扩展包失败'));
+      return;
+    }
+    const { list, next } = unwrapStoreList(response);
+    if (list.length === 0 && requestedPage > 1) {
+      storeQuery.pageNum = requestedPage - 1;
+      storeMaxPageCount.value = Math.max(1, requestedPage - 1);
+      await loadStorePage(true);
+      return;
+    }
     storePackages.value = list;
-    storeTotal.value = total || list.length;
+    const discoveredPageCount = Math.max(1, next ? requestedPage + 1 : requestedPage);
+    storeMaxPageCount.value =
+      resetKnownPages || !next
+        ? discoveredPageCount
+        : Math.max(storeMaxPageCount.value, discoveredPageCount);
   } finally {
-    storeLoading.value = false;
+    finishStoreListRequest(requestId);
+  }
+};
+
+const loadStoreRecommend = async () => {
+  const requestId = beginStoreListRequest();
+  try {
+    const response = await getStoreRecommend();
+    if (!isCurrentStoreListRequest(requestId)) {
+      return;
+    }
+    if (!response.result) {
+      storePackages.value = [];
+      ElMessage.error(getResponseError(response, '获取商店推荐列表失败'));
+      return;
+    }
+    storePackages.value = unwrapStoreList(response).list;
+  } finally {
+    finishStoreListRequest(requestId);
+  }
+};
+
+const handleStoreViewChange = async (view: string | number | boolean | undefined) => {
+  if (view === 'recommend') {
+    await loadStoreRecommend();
+  } else {
+    resetStorePagination();
+    await loadStorePage();
   }
 };
 
 const handleStoreSearch = async () => {
-  storeQuery.pageNum = 1;
-  if (storeQuery.name.trim()) {
-    await searchStorePackages();
-  } else {
-    await loadStoreRecommend();
-  }
+  resetStorePagination();
+  await loadStorePage();
 };
 
 const refreshCurrentStoreView = async () => {
   if (!storeLoadStarted.value) {
     return;
   }
-  if (storeViewMode.value === 'search') {
-    await searchStorePackages();
-  } else {
+  if (storeView.value === 'recommend') {
     await loadStoreRecommend();
+  } else {
+    await loadStorePage(true);
   }
 };
 
 const handleStorePageChange = async (page: number) => {
   storeQuery.pageNum = page;
-  await searchStorePackages();
+  await loadStorePage();
 };
 
 const ensureStoreLoaded = async () => {
@@ -2030,7 +2099,11 @@ const ensureStoreLoaded = async () => {
   }
   storeLoadStarted.value = true;
   try {
-    await loadStoreRecommend();
+    if (storeView.value === 'recommend') {
+      await loadStoreRecommend();
+    } else {
+      await loadStorePage();
+    }
   } catch {
     storeLoadStarted.value = false;
   }
@@ -3568,11 +3641,21 @@ onBeforeMount(async () => {
   min-height: 1.8rem;
 }
 
+.store-view-tabs {
+  margin-bottom: 1rem;
+}
+
 .store-search-bar {
   max-width: 42rem;
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+@media screen and (max-width: 768px) {
+  .store-package-name-link :deep(.el-link__inner) {
+    color: var(--el-color-primary);
+  }
 }
 
 .store-search-input {
@@ -3599,12 +3682,14 @@ onBeforeMount(async () => {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: flex-end;
+  gap: 0.25rem;
   white-space: nowrap;
 }
 
 .store-package-actions :deep(.el-button) {
   margin-left: 0;
+  font-size: var(--el-font-size-base);
 }
 
 .store-detail-link {
@@ -3612,19 +3697,12 @@ onBeforeMount(async () => {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
+  font-size: var(--el-font-size-base);
 }
 
 .store-detail-link :deep(.el-link__inner) {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+  font-size: inherit;
   line-height: 1;
-}
-
-.store-detail-link-icon {
-  flex: 0 0 auto;
-  margin: 0;
-  font-size: 13px;
 }
 
 .store-package-name-cell {
@@ -3693,6 +3771,26 @@ onBeforeMount(async () => {
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.store-package-name-link {
+  vertical-align: baseline;
+}
+
+.store-package-name-link :deep(.el-link__inner) {
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  color: #1f2f46;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.store-package-name-link:hover :deep(.el-link__inner) {
+  color: var(--el-color-primary);
+  text-decoration: underline;
 }
 
 .store-package-name-version {
